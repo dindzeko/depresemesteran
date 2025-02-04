@@ -134,6 +134,49 @@ with st.expander("Tambah Kapitalisasi"):
                 })
                 st.success("Kapitalisasi ditambahkan")
 
+# Tampilkan Kapitalisasi dengan Edit dan Hapus
+if st.session_state.capitalizations:
+    st.subheader("Daftar Kapitalisasi")
+    for i, cap in enumerate(st.session_state.capitalizations):
+        col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
+        with col1:
+            st.write(f"**Tanggal:** {cap['date'].strftime('%d/%m/%Y')}")
+        with col2:
+            st.write(f"**Jumlah:** Rp{cap['amount']:,.2f}")
+        with col3:
+            st.write(f"**Perpanjangan:** {cap['life_extension']} tahun")
+        with col4:
+            if st.button("Edit", key=f"edit_cap_{i}"):
+                st.session_state.edit_cap_index = i
+            if st.button("Hapus", key=f"delete_cap_{i}"):
+                st.session_state.capitalizations.pop(i)
+                st.rerun()
+    
+    # Form Edit Kapitalisasi
+    if 'edit_cap_index' in st.session_state:
+        edit_index = st.session_state.edit_cap_index
+        cap_to_edit = st.session_state.capitalizations[edit_index]
+        with st.form(f"edit_kapitalisasi_form_{edit_index}"):
+            cap_col1, cap_col2, cap_col3 = st.columns(3)
+            with cap_col1:
+                new_cap_date = st.date_input("Tanggal Baru", value=cap_to_edit['date'], key=f"new_cap_date_{edit_index}")
+            with cap_col2:
+                new_cap_amount = st.number_input("Jumlah Baru (Rp)", value=cap_to_edit['amount'], min_value=0.0, key=f"new_cap_amount_{edit_index}")
+            with cap_col3:
+                new_life_extension = st.number_input("Perpanjangan Baru (tahun)", value=cap_to_edit['life_extension'], min_value=0, step=1, key=f"new_life_ext_{edit_index}")
+            
+            if st.form_submit_button("Simpan Perubahan"):
+                if new_cap_date < acquisition_date or new_cap_date > reporting_date:
+                    st.error("Tanggal harus antara Tanggal Perolehan dan Pelaporan")
+                else:
+                    st.session_state.capitalizations[edit_index] = {
+                        'date': new_cap_date,
+                        'amount': new_cap_amount,
+                        'life_extension': new_life_extension
+                    }
+                    del st.session_state.edit_cap_index
+                    st.rerun()
+
 # Form Koreksi
 with st.expander("Tambah Koreksi"):
     with st.form("koreksi_form"):
@@ -153,24 +196,43 @@ with st.expander("Tambah Koreksi"):
                 })
                 st.success("Koreksi ditambahkan")
 
-# Tampilkan Kapitalisasi
-if st.session_state.capitalizations:
-    st.subheader("Daftar Kapitalisasi")
-    cap_df = pd.DataFrame([{
-        'Tanggal': cap['date'].strftime("%d/%m/%Y"),
-        'Jumlah': f"Rp{cap['amount']:,.2f}",
-        'Perpanjangan': f"{cap['life_extension']} tahun"
-    } for cap in st.session_state.capitalizations])
-    st.dataframe(cap_df, use_container_width=True)
-
-# Tampilkan Koreksi
+# Tampilkan Koreksi dengan Edit dan Hapus
 if st.session_state.corrections:
     st.subheader("Daftar Koreksi")
-    corr_df = pd.DataFrame([{
-        'Tanggal': corr['date'].strftime("%d/%m/%Y"),
-        'Jumlah': f"Rp{corr['amount']:,.2f}"
-    } for corr in st.session_state.corrections])
-    st.dataframe(corr_df, use_container_width=True)
+    for i, corr in enumerate(st.session_state.corrections):
+        col1, col2, col3 = st.columns([2, 2, 1])
+        with col1:
+            st.write(f"**Tanggal:** {corr['date'].strftime('%d/%m/%Y')}")
+        with col2:
+            st.write(f"**Jumlah:** Rp{corr['amount']:,.2f}")
+        with col3:
+            if st.button("Edit", key=f"edit_corr_{i}"):
+                st.session_state.edit_corr_index = i
+            if st.button("Hapus", key=f"delete_corr_{i}"):
+                st.session_state.corrections.pop(i)
+                st.rerun()
+    
+    # Form Edit Koreksi
+    if 'edit_corr_index' in st.session_state:
+        edit_index = st.session_state.edit_corr_index
+        corr_to_edit = st.session_state.corrections[edit_index]
+        with st.form(f"edit_koreksi_form_{edit_index}"):
+            corr_col1, corr_col2 = st.columns(2)
+            with corr_col1:
+                new_corr_date = st.date_input("Tanggal Baru", value=corr_to_edit['date'], key=f"new_corr_date_{edit_index}")
+            with corr_col2:
+                new_corr_amount = st.number_input("Jumlah Baru (Rp)", value=corr_to_edit['amount'], min_value=0.0, key=f"new_corr_amount_{edit_index}")
+            
+            if st.form_submit_button("Simpan Perubahan"):
+                if new_corr_date < acquisition_date or new_corr_date > reporting_date:
+                    st.error("Tanggal harus antara Tanggal Perolehan dan Pelaporan")
+                else:
+                    st.session_state.corrections[edit_index] = {
+                        'date': new_corr_date,
+                        'amount': new_corr_amount
+                    }
+                    del st.session_state.edit_corr_index
+                    st.rerun()
 
 # Tombol Aksi
 action_col1, action_col2, action_col3 = st.columns([1,1,2])
