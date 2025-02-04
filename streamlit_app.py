@@ -137,7 +137,7 @@ with st.expander("Tambah Kapitalisasi"):
 
 # Tampilkan Kapitalisasi dengan Edit dan Hapus
 if st.session_state.capitalizations:
-    st.subheader("Daftar Kapitalisasi")
+    st.subheader("Rekap Kapitalisasi")
     for i, cap in enumerate(st.session_state.capitalizations):
         col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
         with col1:
@@ -199,7 +199,7 @@ with st.expander("Tambah Koreksi"):
 
 # Tampilkan Koreksi dengan Edit dan Hapus
 if st.session_state.corrections:
-    st.subheader("Daftar Koreksi")
+    st.subheader("Rekap Koreksi")
     for i, corr in enumerate(st.session_state.corrections):
         col1, col2, col3 = st.columns([2, 2, 1])
         with col1:
