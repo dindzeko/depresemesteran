@@ -72,7 +72,7 @@ if 'capitalizations' not in st.session_state:
 # Input Parameter Utama
 col1, col2 = st.columns(2)
 with col1:
-    acquisition_date = st.date_input("Tanggal Perolehan", value=datetime(2023, 1, 1))
+    acquisition_date = st.date_input("Tanggal Perolehan", value=datetime(1950, 1, 1))
     initial_cost = st.number_input("Initial Cost (Rp)", min_value=0.0, format="%.2f")
     
 with col2:
