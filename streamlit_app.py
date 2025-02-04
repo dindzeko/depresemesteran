@@ -72,9 +72,20 @@ if 'capitalizations' not in st.session_state:
 # Input Parameter Utama
 col1, col2 = st.columns(2)
 with col1:
-    acquisition_date = st.date_input("Tanggal Perolehan", value=datetime(1950, 1, 1))
+    # Batasi tanggal antara 1900-2024
+    acquisition_date = st.date_input(
+        "Tanggal Perolehan", 
+        value=datetime(2023, 1, 1),
+        min_value=datetime(1900, 1, 1),
+        max_value=datetime(2024, 12, 31)
+    )
     initial_cost = st.number_input("Initial Cost (Rp)", min_value=0.0, format="%.2f")
-    
+# Validasi manual tambahan
+    if acquisition_date.year < 1900 or acquisition_date.year > 2024:
+        st.error("❌ Tanggal Perolehan harus antara tahun 1900 sampai 2024")
+        st.stop()
+
+
 with col2:
     useful_life = st.number_input("Masa Manfaat (tahun)", min_value=1, step=1)
     reporting_date = st.date_input("Tanggal Pelaporan", value=datetime.now())
