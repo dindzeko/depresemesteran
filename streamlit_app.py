@@ -3,9 +3,11 @@ from datetime import datetime
 import pandas as pd
 
 # Fungsi perhitungan tetap sama seperti aslinya
-def calculate_depreciation(initial_cost, acquisition_date, useful_life, reporting_date, capitalizations=None):
+def calculate_depreciation(initial_cost, acquisition_date, useful_life, reporting_date, capitalizations=None, corrections=None):
     if capitalizations is None:
         capitalizations = []
+    if corrections is None:
+        corrections = []
     
     useful_life_semesters = useful_life * 2
     remaining_life = useful_life_semesters
@@ -17,6 +19,13 @@ def calculate_depreciation(initial_cost, acquisition_date, useful_life, reportin
         cap_semester = 1 if cap['date'].month <= 6 else 2
         key = (cap_year, cap_semester)
         cap_dict.setdefault(key, []).append(cap)
+    
+    correction_dict = {}
+    for corr in corrections:
+        corr_year = corr['date'].year
+        corr_semester = 1 if corr['date'].month <= 6 else 2
+        key = (corr_year, corr_semester)
+        correction_dict.setdefault(key, []).append(corr)
     
     book_value = initial_cost
     current_year = acquisition_date.year
@@ -30,13 +39,22 @@ def calculate_depreciation(initial_cost, acquisition_date, useful_life, reportin
     
     while remaining_life > 0 and (current_year, current_semester) <= reporting_key:
         current_key = (current_year, current_semester)
+        
+        # Proses kapitalisasi
         if current_key in cap_dict:
             for cap in cap_dict[current_key]:
                 book_value += cap['amount']
                 life_extension = cap.get('life_extension', 0) * 2
                 remaining_life = min(remaining_life + life_extension, original_life)
         
-        if remaining_life <= 0:
+        # Proses koreksi
+        if current_key in correction_dict:
+            for corr in correction_dict[current_key]:
+                book_value -= corr['amount']
+                # Pastikan book_value tidak menjadi negatif
+                book_value = max(book_value, 0)
+        
+        if remaining_life <= 0 or book_value <= 0:
             break
         
         dep_per_semester = book_value / remaining_life
@@ -68,11 +86,12 @@ st.title("Kalkulator Penyusutan Semesteran")
 # Inisialisasi session state
 if 'capitalizations' not in st.session_state:
     st.session_state.capitalizations = []
+if 'corrections' not in st.session_state:
+    st.session_state.corrections = []
 
 # Input Parameter Utama
 col1, col2 = st.columns(2)
 with col1:
-    # Batasi tanggal antara 1900-2024
     acquisition_date = st.date_input(
         "Tanggal Perolehan", 
         value=datetime(2023, 1, 1),
@@ -80,15 +99,18 @@ with col1:
         max_value=datetime(2024, 12, 31)
     )
     initial_cost = st.number_input("Initial Cost (Rp)", min_value=0.0, format="%.2f")
-# Validasi manual tambahan
     if acquisition_date.year < 1900 or acquisition_date.year > 2024:
         st.error("❌ Tanggal Perolehan harus antara tahun 1900 sampai 2024")
         st.stop()
 
-
 with col2:
     useful_life = st.number_input("Masa Manfaat (tahun)", min_value=1, step=1)
-    reporting_date = st.date_input("Tanggal Pelaporan", value=datetime.now())
+    reporting_date = st.date_input(
+        "Tanggal Pelaporan", 
+        value=datetime(2024, 12, 31),  # Default tanggal pelaporan
+        min_value=datetime(1900, 1, 1),
+        max_value=datetime(2024, 12, 31)
+    )
 
 # Form Kapitalisasi
 with st.expander("Tambah Kapitalisasi"):
@@ -112,6 +134,25 @@ with st.expander("Tambah Kapitalisasi"):
                 })
                 st.success("Kapitalisasi ditambahkan")
 
+# Form Koreksi
+with st.expander("Tambah Koreksi"):
+    with st.form("koreksi_form"):
+        corr_col1, corr_col2 = st.columns(2)
+        with corr_col1:
+            corr_date = st.date_input("Tanggal Koreksi", key="corr_date")
+        with corr_col2:
+            corr_amount = st.number_input("Jumlah Koreksi (Rp)", key="corr_amount", min_value=0.0)
+        
+        if st.form_submit_button("Tambah Koreksi"):
+            if corr_date < acquisition_date or corr_date > reporting_date:
+                st.error("Tanggal harus antara Tanggal Perolehan dan Pelaporan")
+            else:
+                st.session_state.corrections.append({
+                    'date': corr_date,
+                    'amount': corr_amount
+                })
+                st.success("Koreksi ditambahkan")
+
 # Tampilkan Kapitalisasi
 if st.session_state.capitalizations:
     st.subheader("Daftar Kapitalisasi")
@@ -121,16 +162,22 @@ if st.session_state.capitalizations:
         'Perpanjangan': f"{cap['life_extension']} tahun"
     } for cap in st.session_state.capitalizations])
     st.dataframe(cap_df, use_container_width=True)
-    
-    if st.button("Hapus Semua Kapitalisasi"):
-        st.session_state.capitalizations = []
-        st.rerun()
+
+# Tampilkan Koreksi
+if st.session_state.corrections:
+    st.subheader("Daftar Koreksi")
+    corr_df = pd.DataFrame([{
+        'Tanggal': corr['date'].strftime("%d/%m/%Y"),
+        'Jumlah': f"Rp{corr['amount']:,.2f}"
+    } for corr in st.session_state.corrections])
+    st.dataframe(corr_df, use_container_width=True)
 
 # Tombol Aksi
 action_col1, action_col2, action_col3 = st.columns([1,1,2])
 with action_col1:
     if st.button("🔄 Reset Semua"):
         st.session_state.capitalizations = []
+        st.session_state.corrections = []
         st.rerun()
         
 with action_col2:
@@ -167,7 +214,8 @@ if st.button("🧮 Hitung Penyusutan"):
             acquisition_date=acquisition_date,
             useful_life=useful_life,
             reporting_date=reporting_date,
-            capitalizations=st.session_state.capitalizations
+            capitalizations=st.session_state.capitalizations,
+            corrections=st.session_state.corrections
         )
         
         st.session_state.schedule = schedule
