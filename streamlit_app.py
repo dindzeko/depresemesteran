@@ -1,8 +1,9 @@
 import streamlit as st
 from datetime import datetime
 import pandas as pd
+import io
 
-# Fungsi perhitungan tetap sama seperti aslinya
+# Fungsi perhitungan penyusutan
 def calculate_depreciation(initial_cost, acquisition_date, useful_life, reporting_date, capitalizations=None, corrections=None):
     if capitalizations is None:
         capitalizations = []
@@ -261,11 +262,24 @@ with action_col2:
             for col in currency_cols:
                 df[col] = df[col].apply(lambda x: f"Rp{x:,.2f}")
             
+            # Export ke Excel
+            excel_buffer = io.BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+                df.to_excel(writer, index=False, sheet_name='Jadwal Penyusutan')
+                # Format kolom mata uang di Excel
+                workbook = writer.book
+                worksheet = writer.sheets['Jadwal Penyusutan']
+                money_format = workbook.add_format({'num_format': '#,##0.00'})
+                for i, col in enumerate(df.columns):
+                    if col in currency_cols:
+                        worksheet.set_column(i, i, None, money_format)
+            
+            excel_buffer.seek(0)
             st.download_button(
                 label="Download Excel",
-                data=df.to_csv(index=False).encode('utf-8'),
-                file_name="depresiasi.csv",
-                mime="text/csv"
+                data=excel_buffer,
+                file_name="jadwal_penyusutan.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
 # Hitung Penyusutan
