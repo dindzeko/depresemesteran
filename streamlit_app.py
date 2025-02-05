@@ -13,54 +13,54 @@ def calculate_depreciation(initial_cost, acquisition_date, useful_life, reportin
     useful_life_semesters = useful_life * 2
     remaining_life = useful_life_semesters
     original_life = useful_life_semesters
-    
+
     cap_dict = {}
     for cap in capitalizations:
         cap_year = cap['date'].year
         cap_semester = 1 if cap['date'].month <= 6 else 2
         key = (cap_year, cap_semester)
         cap_dict.setdefault(key, []).append(cap)
-    
+
     correction_dict = {}
     for corr in corrections:
         corr_year = corr['date'].year
         corr_semester = 1 if corr['date'].month <= 6 else 2
         key = (corr_year, corr_semester)
         correction_dict.setdefault(key, []).append(corr)
-    
+
     book_value = initial_cost
     current_year = acquisition_date.year
     current_semester = 1 if acquisition_date.month <= 6 else 2
     reporting_year = reporting_date.year
     reporting_semester = 1 if reporting_date.month <= 6 else 2
     reporting_key = (reporting_year, reporting_semester)
-    
     accumulated_dep = 0
     schedule = []
-    
+
     while remaining_life > 0 and (current_year, current_semester) <= reporting_key:
         current_key = (current_year, current_semester)
-        
+
         # Proses kapitalisasi
         if current_key in cap_dict:
             for cap in cap_dict[current_key]:
                 book_value += cap['amount']
                 life_extension = cap.get('life_extension', 0) * 2
                 remaining_life = min(remaining_life + life_extension, original_life)
-        
+
         # Proses koreksi
         if current_key in correction_dict:
             for corr in correction_dict[current_key]:
                 book_value -= corr['amount']
-                # Pastikan book_value tidak menjadi negatif
-                book_value = max(book_value, 0)
-        
+
+        # Pastikan book_value tidak menjadi negatif
+        book_value = max(book_value, 0)
+
         if remaining_life <= 0 or book_value <= 0:
             break
-        
+
         dep_per_semester = book_value / remaining_life
         accumulated_dep += dep_per_semester
-        
+
         schedule.append({
             'year': current_year,
             'semester': current_semester,
@@ -69,16 +69,16 @@ def calculate_depreciation(initial_cost, acquisition_date, useful_life, reportin
             'book_value': round(book_value - dep_per_semester, 2),
             'sisa_mm': remaining_life - 1
         })
-        
+
         book_value -= dep_per_semester
         remaining_life -= 1
-        
+
         if current_semester == 1:
             current_semester = 2
         else:
             current_semester = 1
             current_year += 1
-    
+
     return schedule
 
 # UI Streamlit
@@ -152,7 +152,7 @@ if st.session_state.capitalizations:
             if st.button("Hapus", key=f"delete_cap_{i}"):
                 st.session_state.capitalizations.pop(i)
                 st.rerun()
-    
+
     # Form Edit Kapitalisasi
     if 'edit_cap_index' in st.session_state:
         edit_index = st.session_state.edit_cap_index
@@ -212,7 +212,7 @@ if st.session_state.corrections:
             if st.button("Hapus", key=f"delete_corr_{i}"):
                 st.session_state.corrections.pop(i)
                 st.rerun()
-    
+
     # Form Edit Koreksi
     if 'edit_corr_index' in st.session_state:
         edit_index = st.session_state.edit_corr_index
@@ -236,14 +236,45 @@ if st.session_state.corrections:
                     st.rerun()
 
 # Tombol Aksi
-action_col1, action_col2, action_col3 = st.columns([1,1,2])
+action_col1, action_col2, action_col3 = st.columns([1, 1, 2])
+
+# Hitung Penyusutan (Dipindahkan ke atas)
 with action_col1:
+    if st.button("🧮 Hitung Penyusutan"):
+        try:
+            schedule = calculate_depreciation(
+                initial_cost=initial_cost,
+                acquisition_date=acquisition_date,
+                useful_life=useful_life,
+                reporting_date=reporting_date,
+                capitalizations=st.session_state.capitalizations,
+                corrections=st.session_state.corrections
+            )
+            st.session_state.schedule = schedule
+
+            # Format hasil untuk tampilan
+            df = pd.DataFrame(schedule)
+            df['Semester'] = df['semester'].apply(lambda x: f"Semester {x}")
+            df['Penyusutan'] = df['depreciation'].apply(lambda x: f"Rp{x:,.2f}")
+            df['Akumulasi'] = df['accumulated'].apply(lambda x: f"Rp{x:,.2f}")
+            df['Nilai Buku'] = df['book_value'].apply(lambda x: f"Rp{x:,.2f}")
+
+            st.subheader("Jadwal Penyusutan")
+            st.dataframe(df[['year', 'Semester', 'Penyusutan', 'Akumulasi', 'Nilai Buku', 'sisa_mm']].rename(
+                columns={'year': 'Tahun', 'sisa_mm': 'Sisa MM'}
+            ), use_container_width=True, hide_index=True)
+        except Exception as e:
+            st.error(f"Terjadi kesalahan: {str(e)}")
+
+# Reset Semua
+with action_col2:
     if st.button("🔄 Reset Semua"):
         st.session_state.capitalizations = []
         st.session_state.corrections = []
         st.rerun()
-        
-with action_col2:
+
+# Export Excel
+with action_col3:
     if st.button("💾 Export Excel"):
         if 'schedule' in st.session_state:
             df = pd.DataFrame(st.session_state.schedule)
@@ -256,16 +287,17 @@ with action_col2:
                 'book_value': 'Nilai Buku',
                 'sisa_mm': 'Sisa MM'
             })
-            
+
             # Konversi format mata uang
             currency_cols = ['Penyusutan', 'Akumulasi', 'Nilai Buku']
             for col in currency_cols:
                 df[col] = df[col].apply(lambda x: f"Rp{x:,.2f}")
-            
+
             # Export ke Excel
             excel_buffer = io.BytesIO()
             with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
                 df.to_excel(writer, index=False, sheet_name='Jadwal Penyusutan')
+
                 # Format kolom mata uang di Excel
                 workbook = writer.book
                 worksheet = writer.sheets['Jadwal Penyusutan']
@@ -273,7 +305,7 @@ with action_col2:
                 for i, col in enumerate(df.columns):
                     if col in currency_cols:
                         worksheet.set_column(i, i, None, money_format)
-            
+
             excel_buffer.seek(0)
             st.download_button(
                 label="Download Excel",
@@ -281,33 +313,3 @@ with action_col2:
                 file_name="jadwal_penyusutan.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-
-# Hitung Penyusutan
-if st.button("🧮 Hitung Penyusutan"):
-    try:
-        schedule = calculate_depreciation(
-            initial_cost=initial_cost,
-            acquisition_date=acquisition_date,
-            useful_life=useful_life,
-            reporting_date=reporting_date,
-            capitalizations=st.session_state.capitalizations,
-            corrections=st.session_state.corrections
-        )
-        
-        st.session_state.schedule = schedule
-        
-        # Format hasil untuk tampilan
-        df = pd.DataFrame(schedule)
-        df['Semester'] = df['semester'].apply(lambda x: f"Semester {x}")
-        df['Penyusutan'] = df['depreciation'].apply(lambda x: f"Rp{x:,.2f}")
-        df['Akumulasi'] = df['accumulated'].apply(lambda x: f"Rp{x:,.2f}")
-        df['Nilai Buku'] = df['book_value'].apply(lambda x: f"Rp{x:,.2f}")
-        
-        st.subheader("Jadwal Penyusutan")
-        st.dataframe(df[['year', 'Semester', 'Penyusutan', 'Akumulasi', 'Nilai Buku', 'sisa_mm']]
-                     .rename(columns={'year': 'Tahun', 'sisa_mm': 'Sisa MM'}),
-                     use_container_width=True,
-                     hide_index=True)
-        
-    except Exception as e:
-        st.error(f"Terjadi kesalahan: {str(e)}")
